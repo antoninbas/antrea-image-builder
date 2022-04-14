@@ -1,0 +1,62 @@
+name: Build on-demand Antrea Docker images
+
+on:
+  workflow_dispatch:
+    inputs:
+      antrea-repository:
+        description: 'The Antrea repository to check-out'
+        required: true
+      antrea-ref:
+        description: 'The Git ref to use when checking-out the Antrea repository'
+        required: true
+      docker-tag:
+        description: 'Tag for built Docker image'
+        required: true
+      version:
+        description: 'OS/Arch to build'
+        type: choice
+        options:
+        - linux/amd64
+        - windows/amd64
+
+jobs:
+  linux-amd64:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.version == 'linux/amd64' }}
+    steps:
+    - name: Checkout Antrea repository
+      uses: actions/checkout@v3
+      with:
+        repository: ${{ github.event.inputs.antrea-repository }}
+        ref: ${{ github.event.inputs.antrea-ref }}
+    - name: Build linux/amd64 Docker image
+      run: |
+        ./hack/build-antrea-linux-all.sh --pull
+        docker tag antrea/antrea-ubuntu:latest ${{ github.event.inputs.docker-tag }}
+    - name: Push linux/amd64 Docker image
+      env:
+        DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+        DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+      run: |
+        echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+        docker push ${{ github.event.inputs.docker-tag }}
+  windows-amd64:
+    runs-on: windows-latest
+    if: ${{ github.event.inputs.version == 'windows/amd64' }}
+    steps:
+    - name: Checkout Antrea repository
+      uses: actions/checkout@v3
+      with:
+        repository: ${{ github.event.inputs.antrea-repository }}
+        ref: ${{ github.event.inputs.antrea-ref }}
+    - name: Build windows/amd64 Docker image
+      run: |
+        make build-windows
+        docker tag antrea/antrea-windows:latest ${{ github.event.inputs.docker-tag }}
+    - name: Push windows/amd64 Docker image
+      env:
+        DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+        DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+      run: |
+        echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+        docker push ${{ github.event.inputs.docker-tag }}
